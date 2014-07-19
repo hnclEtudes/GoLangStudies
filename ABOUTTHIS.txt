@@ -1,0 +1,21 @@
+*** IMPORTANT NOTE *** A race condition could obtain the way 
+the function serveRequest() is written, so I will have to fix that.
+*** END IMPORTANT NOTE ***
+
+FiveOnlySrv.go implements a very simple webserver that (should) only
+accept up to five concurrent connections. It listens on port 8181
+on the local machine, and will accept any path after the inital
+URL, for example 'http://localhost:8181/ThisIsSilly'. On receiving
+the message, it waits a random amount of time and then returns a message
+like this
+
+concurrentRequests: 0
+Currently there are: 1 requests
+Milliseconds until completion:	0260.
+Done
+
+This is actually a testing requirment for another project. To start,
+simply type "go run FiveOnlySrv.go &". Access though a browser, curl,
+or a client you have written. A forthcoming version will make this a 
+package, turning main into an entry point, RunServer() or something
+like that, that can be invoked from its own client or testing tool.
