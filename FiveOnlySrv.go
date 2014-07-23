@@ -16,10 +16,6 @@ import (
 	"time"
 )
 
-// RULER (for formatting comments)
-//012345678901234567890123456789012345678901234567890123456789012345678901234567890
-//0         1         2         3         4         5         6        7          8
-
 // randomSleep() returns a (pseudo) random number of milliseconds, up to 999
 // and a function that sleeps for just that amount of time. It's a handy thing
 // and I should make a package of them.
@@ -62,7 +58,8 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 	totalRequestsProcessed++; 
 	concurrentReqsAtStart := concurrentRequests
 	concurrentRequests++
-	log.Printf("Starting server request %03d, with concurrentRequests: %d\n", totalRequestsProcessed, concurrentRequests)
+	log.Printf("Starting server request %03d, with concurrentRequests: %d\n", 
+		totalRequestsProcessed, concurrentRequests)
 
 	
 	/* This shouldn't happen if the requestQueue isn't bigger 
@@ -103,9 +100,12 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 	// accounts have been emptied, and that I have been declared legally dead in New Jersey, the
 	// object of a manhunt in New York, and a suspected child pornographer in Connecticutt. And when 
 	// I wake up Suzanne, she screams and says, "Who are you and what have you done with Dennis?"
+	//
+	// I should not make jokes. Not when I'm floundering like this.
 
 	if concurrentReqsAtEnd != concurrentReqsAtStart {	
-		log.Printf("%d Request outstanding at the start: now %d requests pending\n", concurrentReqsAtStart, concurrentReqsAtEnd)
+		log.Printf("%d Request outstanding at the start: now %d requests pending\n", 
+			concurrentReqsAtStart, concurrentReqsAtEnd)
 	} else {
 		log.Printf("%d Requests still outstanding\n", concurrentRequests)
 	}
