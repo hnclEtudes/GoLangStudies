@@ -15,7 +15,7 @@ const maxRequest = 25
 // and a function that sleeps for just that amount of time. It's a handy thing
 // and I should make a package of them.
 func randomSleep() (napTime time.Duration, napFunc func ()) {
-	napTime = time.Duration(rand.Intn(999)) * time.Millisecond
+	napTime = time.Duration(rand.Intn(250)) * time.Millisecond
 	napFunc = func() {
 		time.Sleep(napTime)
 	}
