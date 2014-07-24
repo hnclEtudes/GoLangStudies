@@ -11,11 +11,10 @@ import (
 const requestURL = "http://localhost:8181" // The URL for the server created by aServer.LaunchServer()
 const maxRequest = 25
 
-// randomSleep() returns a (pseudo) random number of milliseconds, up to 999
-// and a function that sleeps for just that amount of time. It's a handy thing
-// and I should make a package of them.
-func randomSleep() (napTime time.Duration, napFunc func ()) {
-	napTime = time.Duration(rand.Intn(250)) * time.Millisecond
+// randomSleep() returns a (pseudo) random number of milliseconds, up to maxSleep
+// and a function that sleeps for just that amount of time. 
+func randomSleep(maxSleep int) (napTime time.Duration, napFunc func ()) {
+	napTime = time.Duration(rand.Intn(maxSleep)) * time.Millisecond
 	napFunc = func() {
 		time.Sleep(napTime)
 	}
@@ -73,11 +72,18 @@ func main() {
 		fmt.Printf("Making Request Number #%d:\n\n", i + 1)
 		
 		go makeRequest (i + 1, respChannel)
-		napTime, napFunc := randomSleep()
+		napTime, napFunc := randomSleep(250)
 		fmt.Printf("About to sleep %04d  milliseconds (compensate for random time in server reples)...", 
 			napTime/time.Millisecond)
 		napFunc()
 		fmt.Println("Done\n")
+		if (i + 1) % 5 == 0 {
+			napTime, napFunc := randomSleep(500)
+			fmt.Printf(
+				"\tAfter Request #%d, (every 5th request) sleeping for %04d ms to allow server to catch (maybe)\n",
+				i + 1, napTime/time.Millisecond)
+			napFunc()
+		}
 	}
 
 	// Now get the responses:
