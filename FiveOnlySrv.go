@@ -16,11 +16,10 @@ import (
 	"time"
 )
 
-// randomSleep() returns a (pseudo) random number of milliseconds, up to 999
-// and a function that sleeps for just that amount of time. It's a handy thing
-// and I should make a package of them.
-func randomSleep() (napTime time.Duration, napFunc func ()) {
-	napTime = time.Duration(rand.Intn(999)) * time.Millisecond
+// randomSleep() returns a (pseudo) random number of milliseconds, up to maxSleep
+// and a function that sleeps for just that amount of time. 
+func randomSleep(maxSleep int) (napTime time.Duration, napFunc func()) {
+	napTime = time.Duration(rand.Intn(maxSleep)) * time.Millisecond
 	napFunc = func() {
 		time.Sleep(napTime)
 	}
@@ -32,50 +31,61 @@ func randomSleep() (napTime time.Duration, napFunc func ()) {
 const maxConcurrentRequest = 5
 
 // This *SHOULD* be the number of concurrentRequests at any time, but
-// because of concurrency it gets munged up. Wish there were a way to 
+// because of concurrency it gets munged up. Wish there were a way to
 // examine the items on a channel without pulling'em off. :(
 var concurrentRequests int = 0
 
 // A running count of requests served.
 var totalRequestsProcessed int = 0
 
-// func serveRequest() handles all requests since it handles "/" and there are no 
+var inProgress = make(map[int]bool) // key: the serial # of jobs in progress/value: true if in progress
+var semaphore = make(chan bool, 1)
+
+// dieOvercapacity() prints out the jobs still running (there should be five, always)
+// and then calls log.Fatal to print the reason in why
+func dieOvercapacity (why string) {
+	semaphore <- true	// Let no jobs start, stop, be added
+	log.Printf("Reached capacity\nJobs still in progress are:\n")
+	for jobnum, _ := range inProgress {
+		log.Printf("Request #%04d\n", jobnum)
+	}
+	log.Fatalf ("%s\n", why)
+}
+// func serveRequest() handles all requests since it handles "/" and there are no
 // other handlers installed. It does very little: it increments concurentRequests
-// and if concurrentRequests < maxConcurrentRequest, shuts down the process with 
+// and if concurrentRequests < maxConcurrentRequest, shuts down the process with
 // a log.fatal() call.
 func serveRequest(w http.ResponseWriter, r *http.Request) {
-	var semaphore chan bool
-	semaphore  = make(chan bool, 1)
 	concurrentRequests++
-	if (concurrentRequests > maxConcurrentRequest) {
-		log.Fatalf ("More than %02d concurrentRequests: dying!\n", maxConcurrentRequest)
+	if concurrentRequests > maxConcurrentRequest {
+		dieOvercapacity(fmt.Sprintf("More than %02d concurrentRequests: dying!\n", maxConcurrentRequest))
 	}
-	
-	
+
 	semaphore <- true
 	totalRequestsProcessed++
 	reqSerialNumber := totalRequestsProcessed
-	<- semaphore
-	napTime, napFunc := randomSleep()
+	inProgress[reqSerialNumber] = true
+	<-semaphore
+	napTime, napFunc := randomSleep(999)
 	fmt.Fprintf(w, "INFO:\n====\n")
-	fmt.Fprintf(w, "Request #%04d for '%+v'. Currently %02d requests\n",  reqSerialNumber, 
+	fmt.Fprintf(w, "Request #%04d for '%+v'. Currently %02d requests\n", reqSerialNumber,
 		r.URL, concurrentRequests)
 	fmt.Fprintf(w, "#%04d: Milliseconds until completion:\t%04d.\n", reqSerialNumber, napTime/time.Millisecond)
 	log.Printf("INFO:\n====\n")
-	log.Printf("Request #%04d for '%+v'. Currently %02d requests\n", reqSerialNumber, 
+	log.Printf("Request #%04d for '%+v'. Currently %02d requests\n", reqSerialNumber,
 		r.URL, concurrentRequests)
 	log.Printf("#%04d: Milliseconds until completion:\t%04d.\n", reqSerialNumber, napTime/time.Millisecond)
 	napFunc()
 	semaphore <- true
 	concurrentRequests--
-	<- semaphore
-	fmt.Fprintf(w, "Request #%04d: Done. Currently %02d requests\n", 
+	delete (inProgress, reqSerialNumber)
+	<-semaphore
+	fmt.Fprintf(w, "Request #%04d: Done. Currently %02d requests\n\n",
 		reqSerialNumber, concurrentRequests)
-	log.Printf("Request #%04d: Done. Currently %02d requests\n", 
+	log.Printf("Request #%04d: Done. Currently %02d requests\n\n",
 		reqSerialNumber, concurrentRequests)
 	return
 }
-
 
 func main() {
 
@@ -92,4 +102,3 @@ func main() {
 	whyCrashed := http.ListenAndServe(":8181", nil)
 	fmt.Printf("ListenAndServe died: %s\n", whyCrashed)
 }
-
