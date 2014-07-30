@@ -9,7 +9,7 @@ import (
 )
 
 const requestURL = "http://localhost:8181" // The URL for the server created by aServer.LaunchServer()
-const maxRequest = 25
+const maxRequest = 100
 
 // randomSleep() returns a (pseudo) random number of milliseconds, up to maxSleep
 // and a function that sleeps for just that amount of time. 
@@ -37,13 +37,8 @@ func makeRequest(requestNumber int, respChannel chan *http.Response)  {
 	return
 }
 
-var semaphore = make(chan bool, 1)
 
 func getResponse(responseNumber int, myResponse http.Response) {
-	var busy bool = true
-	semaphore <- busy	// Since this channel can only hold one int at a time,
-								// it should block multiple concurrent calls
-
 	fmt.Printf("Retrieving request #%04d.\n", responseNumber)
 	fmt.Printf("(NB:  the request # in the body of the probably won't match\n")
 	if myResponse.StatusCode != http.StatusOK {
@@ -57,7 +52,6 @@ func getResponse(responseNumber int, myResponse http.Response) {
 			"Response Info:\n[Response Status Code %d]\n[Response Status '%s']\n[Length: %d]\n\nResponse Content:\n[%s]\n",
 			myResponse.StatusCode, myResponse.Status, actuallyRead, theContent)
 	}
-	<- semaphore
 	return
 }
 
@@ -72,18 +66,7 @@ func main() {
 		fmt.Printf("Making Request Number #%d:\n\n", i + 1)
 		
 		go makeRequest (i + 1, respChannel)
-		napTime, napFunc := randomSleep(250)
-		fmt.Printf("About to sleep %04d  milliseconds (compensate for random time in server reples)...", 
-			napTime/time.Millisecond)
-		napFunc()
 		fmt.Println("Done\n")
-		if (i + 1) % 5 == 0 {
-			napTime, napFunc := randomSleep(500)
-			fmt.Printf(
-				"\tAfter Request #%d, (every 5th request) sleeping for %04d ms to allow server to catch (maybe)\n",
-				i + 1, napTime/time.Millisecond)
-			napFunc()
-		}
 	}
 
 	// Now get the responses:
