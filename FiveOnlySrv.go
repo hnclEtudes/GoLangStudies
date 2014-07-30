@@ -1,6 +1,10 @@
 package main
 
 /*
+ *	*** THIS FILE IS NOW OBSOLETE ***
+ *  SorryServer.go implements the sad, underpowered webserver
+ *  for this exercise
+ *	*** THIS FILE IS NOW OBSOLETE ***
  * Implements a simple webserver that handles up to five
  * concurrent requests that each take a random amount
  * of time to complete. Once a sixth concurrent request
