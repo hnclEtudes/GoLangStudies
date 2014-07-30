@@ -60,21 +60,35 @@ func dieOvercapacity (why string) {
 // other handlers installed. It does very little: it increments concurentRequests
 // and if concurrentRequests < maxConcurrentReqs, shuts down the process with
 // a log.fatal() call.
+var startSemaphore, releaseSemaphore, priorStart time.Time
+
 func serveRequest(w http.ResponseWriter, r *http.Request) {
 	concurrentRequests++
 	if concurrentRequests > maxConcurrentReqs {
 		dieOvercapacity(fmt.Sprintf("More than %04d concurrentRequests: dying!\n", maxConcurrentReqs))
 	}
 
-	beforeEntry := time.Now()
-	log.Printf("\tApplying entry semaphore\n")
+
+	if ! startSemaphore.IsZero()  {
+		priorStart = startSemaphore
+	}
+	startSemaphore = time.Now()
+	log.Printf("\tApplying entry semaphore at %s\n", startSemaphore.String())
 	semaphore <- true
 	totalRequestsProcessed++
 	reqSerialNumber := totalRequestsProcessed
 	<-semaphore
-	afterEntry := time.Now()
-	entrySemaphoreHeldFor := afterEntry.Sub(beforeEntry)
+	releaseSemaphore = time.Now()
+	entrySemaphoreHeldFor := releaseSemaphore.Sub(startSemaphore)
 	log.Printf("\tReleasing entry semaphore: duration was %010d ns\n", entrySemaphoreHeldFor)
+	if ! priorStart.IsZero() {
+		log.Printf("\tPrevious request arrived at %s\n", priorStart.String())
+		log.Printf("\tCurrent request arrived at %s\n", startSemaphore.String())
+		log.Printf("\tElapsed time: %04d ms, %05d ns\n", 
+			time.Duration(startSemaphore.Nanosecond() - priorStart.Nanosecond())/time.Millisecond,
+			time.Duration(startSemaphore.Nanosecond() - priorStart.Nanosecond()) % 10000)
+	}
+		
 	var maxNap int
 	switch {
 		case concurrentRequests < concurrentReqsLvl0:
