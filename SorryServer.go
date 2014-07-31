@@ -30,11 +30,11 @@ func randomSleep(maxSleep int) (napTime time.Duration, napFunc func()) {
 }
 
 // The thresholds for levels of service degredation:
-const concurrentReqsLvl0 = 5	// Zippy, randomSleep(50)
-const concurrentReqsLvl1 = 10	// OK, randomSleep(100)
-const concurrentReqsLvl2 = 25	// Getting pokey, randomSleep(250)
-const concurrentReqsLvl3 = 50	// Bad, randomSleep(500)
-const concurrentReqsLvl4 = 100	// Awful, randomSleep(750)
+const concurrentReqsLvl0 = 5	// < this, Zippy	randomSleep(50)
+const concurrentReqsLvl1 = 10	// < this, OK		randomSleep(100)
+const concurrentReqsLvl2 = 25	// < this, Pokey	randomSleep(250)
+const concurrentReqsLvl3 = 50	// < this, Bad		randomSleep(500)
+const concurrentReqsLvl4 = 100	// < & >,  Awful	randomSleep(750)
 
 // The threshold for total server capacity:
 const maxConcurrentReqs = concurrentReqsLvl4 * 5
@@ -60,36 +60,18 @@ func dieOvercapacity (why string) {
 // other handlers installed. It does very little: it increments concurentRequests
 // and if concurrentRequests < maxConcurrentReqs, shuts down the process with
 // a log.fatal() call.
-var startSemaphore, releaseSemaphore, priorStart time.Time
-
 func serveRequest(w http.ResponseWriter, r *http.Request) {
+	var maxNap int
 	concurrentRequests++
 	if concurrentRequests > maxConcurrentReqs {
 		dieOvercapacity(fmt.Sprintf("More than %04d concurrentRequests: dying!\n", maxConcurrentReqs))
 	}
 
-
-	if ! startSemaphore.IsZero()  {
-		priorStart = startSemaphore
-	}
-	startSemaphore = time.Now()
-	log.Printf("\tApplying entry semaphore at %s\n", startSemaphore.String())
 	semaphore <- true
 	totalRequestsProcessed++
 	reqSerialNumber := totalRequestsProcessed
 	<-semaphore
-	releaseSemaphore = time.Now()
-	entrySemaphoreHeldFor := releaseSemaphore.Sub(startSemaphore)
-	log.Printf("\tReleasing entry semaphore: duration was %010d ns\n", entrySemaphoreHeldFor)
-	if ! priorStart.IsZero() {
-		log.Printf("\tPrevious request arrived at %s\n", priorStart.String())
-		log.Printf("\tCurrent request arrived at %s\n", startSemaphore.String())
-		log.Printf("\tElapsed time: %04d ms, %05d ns\n", 
-			time.Duration(startSemaphore.Nanosecond() - priorStart.Nanosecond())/time.Millisecond,
-			time.Duration(startSemaphore.Nanosecond() - priorStart.Nanosecond()) % 10000)
-	}
 		
-	var maxNap int
 	switch {
 		case concurrentRequests < concurrentReqsLvl0:
 			maxNap = 50
@@ -101,18 +83,23 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 			maxNap = 500
 		case concurrentRequests < concurrentReqsLvl4:
 			maxNap = 750
+		default:
+			maxNap = 750
 	}
 	napTime, napFunc := randomSleep(maxNap)
 	fmt.Fprintf(w, "INFO:\n====\n")
 	fmt.Fprintf(w, "Request #%04d for '%+v'. Currently %02d requests\n", reqSerialNumber,
 		r.URL, concurrentRequests)
-	fmt.Fprintf(w, "#%04d: Milliseconds until completion:\t%04d.\n", reqSerialNumber, napTime/time.Millisecond)
-	log.Printf("Request #%04d for '%+v'. Currently %04d requests: Sleeping for %04d ms \n", reqSerialNumber,
-		r.URL, concurrentRequests, napTime/time.Millisecond)
+	fmt.Fprintf(w, "#%04d: Milliseconds until completion:\t%04d. (maxNap = %d)\n", 
+		reqSerialNumber, napTime/time.Millisecond, maxNap)
+	log.Printf("Request #%04d for '%+v'. Currently %04d requests: Sleeping for %04d ms (maxNap = %d)\n", reqSerialNumber,
+		r.URL, concurrentRequests, napTime/time.Millisecond, maxNap)
 	napFunc()
+
 	semaphore <- true
 	concurrentRequests--
 	<-semaphore
+
 	fmt.Fprintf(w, "Request #%04d: Done. Currently %02d requests\n\n",
 		reqSerialNumber, concurrentRequests)
 	return
@@ -131,14 +118,13 @@ func main() {
 	// should be nicely messy.
 	rand.Seed(int64(time.Duration(time.Now().Nanosecond()) / time.Millisecond))
 
-	// with no other handlers installed, this will catch all requests
+	// This will catch all requests not otherwise specified:
 	http.HandleFunc("/", serveRequest)
 
 	// a convenience handler to shut down the server: sometimes, after numerous
 	// startup/shutdowns the port gets "stuck" and I have to reboot. I hope
 	// this will stop that
 	http.HandleFunc("/HALT", haltsrv)
-
 
 	// Run the server on port 8181. Prints the reason
 	// why the server stops (if it's not by a ^C on
