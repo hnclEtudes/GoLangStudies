@@ -11,6 +11,7 @@ package main
  */
 import(
 	"log"
+	"sync"
 	"net/url"
 	"net/http"
 	"net/http/httputil"
@@ -18,23 +19,53 @@ import(
 
 const maxConcurrentRequests = 5
 
+var totalReqs	func() (int)
+
+func makeTotalConcurrentCounters ()(incrementTotal func(), decrementTotal func(), tellMeTotal func() (int)) {
+	var counterAccess sync.Mutex
+	totalRequests := 0
+
+	incrementTotal = func() {
+		(&counterAccess).Lock()
+		totalRequests++
+		(&counterAccess).Unlock()
+	}
+
+	decrementTotal = func() {
+		(&counterAccess).Lock()
+		totalRequests--
+		(&counterAccess).Unlock()
+	}
+
+	tellMeTotal = func() (theTotal int) {
+		return totalRequests
+	}
+	
+	return
+}
+
+	
 func handler(p *httputil.ReverseProxy) func(http.ResponseWriter, *http.Request) {
 	capacityQueue := make (chan int, maxConcurrentRequests)	
 	for i:= 0; i < maxConcurrentRequests; i++ {
 		capacityQueue <- i
 	}
+
+	incrementConcurrentReqs, decrementConcurrentReqs, tellMeNumReqs := makeTotalConcurrentCounters()
+	totalReqs = tellMeNumReqs
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// This two item read is the idiom in the language spec to check if the
 		// queue is empty (http://golang.org/ref/spec#Receive_operator)
 		// Regardless of type, if the queue is empty, it is assigned false
-		queueSlot, ok := <- capacityQueue 
-		if ok == false {
-			log.Printf("Client request for %s exceeds capacity of localhost:8181, returning 503 error\n", r.URL)
-			http.Error(w, "Service Unavailble (error 503): server capacity exceeded", http.StatusServiceUnavailable)
-		}
-		log.Printf("queueSlot %d, Client requested %s, forwarding to localhost:8181\n", queueSlot, r.URL)
+
+		incrementConcurrentReqs() // do this BEFORE pulling off queue; we want to count the reqs that wait
+		queueSlot := <- capacityQueue 
+		log.Printf("queueSlot %d, Client requested %s, forwarding to localhost:8181 (totalReqs = %d)\n", 
+			queueSlot, r.URL, tellMeNumReqs())
 		p.ServeHTTP(w, r)
 		capacityQueue <- queueSlot
+		decrementConcurrentReqs()
 	}
 }
 
@@ -48,7 +79,7 @@ func main() {
 	http.HandleFunc("/", handler(proxy))
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Total reqs made %d\n%s\n", totalReqs(), err)
 	}
 }
 
