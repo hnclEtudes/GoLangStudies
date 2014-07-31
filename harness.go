@@ -1,15 +1,21 @@
 package main
 
 import (
-	"fmt"
+	"os"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
 	"math/rand"
 )
 
-const requestURL = "http://localhost:8181" // The URL for the server created by aServer.LaunchServer()
+const serverURL  = "http://localhost:8181" // The URL for the server created by SorryServer.go
+const proxyURL   = "http://localhost:8080" // The URL for the reverse proxy created by Protector.go
 const maxRequest = 100
+
+var requestURL string	// This will be serverURL unless we find a variable in the environment
+						// HARNESS_TO_REV_PROXY set to "yes", in which case it will be set
+						// to proxyURL, the reverse proxy made by Protector.go
 
 // randomSleep() returns a (pseudo) random number of milliseconds, up to maxSleep
 // and a function that sleeps for just that amount of time. 
@@ -26,9 +32,8 @@ func randomSleep(maxSleep int) (napTime time.Duration, napFunc func ()) {
 // randomSleep function() in main gives us favorable numbers)
 func makeRequest(requestNumber int, respChannel chan *http.Response)  {
 	var myClient http.Client
-	fmt.Printf("\tmakeRequest(): creating new request #%d\n", requestNumber)
 	myRequest, _ := http.NewRequest("GET", requestURL, nil)
-	fmt.Printf("\tmakeRequest(): Sending for response (issuing Do()) #%d\n", requestNumber)
+	log.Printf("\tmakeRequest(): Sending request (issuing Do()) #%d\n", requestNumber)
 	myResponse, _ := (&myClient).Do(myRequest)
 	respChannel <- myResponse
 	if requestNumber == maxRequest { // Channel has hit capacity anyway, so close it
@@ -39,16 +44,16 @@ func makeRequest(requestNumber int, respChannel chan *http.Response)  {
 
 
 func getResponse(responseNumber int, myResponse http.Response) {
-	fmt.Printf("Retrieving request #%04d.\n", responseNumber)
-	fmt.Printf("(NB:  the request # in the body of the probably won't match\n")
+	log.Printf("Retrieving request #%04d.\n", responseNumber)
+	log.Printf("(NB:  the request # in the body of the may not match)\n")
 	if myResponse.StatusCode != http.StatusOK {
-		fmt.Printf("Response Status NOT 200: %d\n[%s]", myResponse.StatusCode, myResponse.Status)
+		log.Printf("Response Status NOT 200: %d\n[%s]", myResponse.StatusCode, myResponse.Status)
 	} else {
 		lenContent, _ := strconv.Atoi(myResponse.Header.Get("Content-Length"))
 		theContent := make([]byte, lenContent)
 		actuallyRead, _ := myResponse.Body.Read(theContent)
 		myResponse.Body.Close()
-		fmt.Printf(
+		log.Printf(
 			"Response Info:\n[Response Status Code %d]\n[Response Status '%s']\n[Length: %d]\n\nResponse Content:\n[%s]\n",
 			myResponse.StatusCode, myResponse.Status, actuallyRead, theContent)
 	}
@@ -57,16 +62,20 @@ func getResponse(responseNumber int, myResponse http.Response) {
 
 func main() {
 
-	fmt.Printf("Informational messages print out from the routines makeRequest() and\n")
-	fmt.Printf("getResponse(). Both are run as go routines (although the second is gated\n")
-	fmt.Printf("to have but one instance running at a time)\n")
+	requestURL = serverURL
+	changeTarget = os.Getenv("HARNESS_TO_REV_PROXY")
+	if changeTarget == "yes" {
+		requestURL = proxyURL
+	}
+
+	log.Printf("Sending requests to %s\n", requestURL)
+	log.Printf("Informational messages print out from the routines makeRequest() and\n")
+	log.Printf("getResponse(). Both are run as go routines (although the second is gated\n")
+	log.Printf("to have but one instance running at a time)\n")
 
 	respChannel := make(chan *http.Response)
 	for i := 0; i < maxRequest; i++ {
-		fmt.Printf("Making Request Number #%d:\n\n", i + 1)
-		
 		go makeRequest (i + 1, respChannel)
-		fmt.Println("Done\n")
 	}
 
 	// Now get the responses:
