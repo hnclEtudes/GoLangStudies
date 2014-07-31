@@ -63,7 +63,7 @@ func getResponse(responseNumber int, myResponse http.Response) {
 func main() {
 
 	requestURL = serverURL
-	changeTarget = os.Getenv("HARNESS_TO_REV_PROXY")
+	changeTarget := os.Getenv("HARNESS_TO_REV_PROXY")
 	if changeTarget == "yes" {
 		requestURL = proxyURL
 	}
