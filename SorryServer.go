@@ -5,9 +5,9 @@ package main
  * with the number of concurrent requests it has to handle.
  * While this is natural behavior, this exaggerates it by
  * counting concurrent requests and using a random sleep function
- * with greater sleep times the greater the number of concurrent
- * requests. When it reaches five times the highest threshold,
- * the server just dies (see the comment to dieOvercapacity())
+ * (see package waiting) with greater sleep times the greater the
+ * number of concurrent * requests. When it reaches five times the
+ * highest threshold, the server just dies (see the comment to dieOvercapacity())
  *
  */
 
@@ -78,14 +78,15 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 		maxNap = 750
 	}
 	napTime, napFunc := waiting.RandomSleep(maxNap)
+	fmt.Fprintf(w, "============================================================\n")
 	fmt.Fprintf(w, "#%04d for '%+v'. Currently %02d requests. ", reqSerialNumber,
 		r.URL, concurrentRequests)
 	fmt.Fprintf(w, "Milliseconds until completion:\t%04d. (maxNap = %d)...",
 		napTime/time.Millisecond, maxNap)
 	log.Printf("Request #%04d for '%+v'. Currently %04d requests: Sleeping for %04d ms (maxNap = %d)\n", reqSerialNumber,
 		r.URL, concurrentRequests, napTime/time.Millisecond, maxNap)
-	log.Printf("Header contents are:\n")
-	for key, value := range w.Header() {
+	log.Printf("Request header contents are:\n")
+	for key, value := range r.Header {
 		log.Printf("\t%s:\t%s\n", key, value)
 	}
 	napFunc()
@@ -95,6 +96,7 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 	<-semaphore
 
 	fmt.Fprintf(w, "Done. (%02d requests now)\n", concurrentRequests)
+	fmt.Fprintf(w, "============================================================\n")
 	return
 }
 
