@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,15 +12,22 @@ const serverURL = "http://localhost:8181" // The URL for the server created by S
 const maxRequest = 100
 
 var requestURL string // This will be serverURL unless we find a variable in the environment
-// HARNESS_TO_REV_PROXY set to "yes", in which case it will be set
-// to proxyURL, the reverse proxy made by Protector.go
+// HARNESS_URL set to another URL, which *SHOULD* be http://localhost:8080, the URL of the
+// reverse proxy implemented in Protector.go. No checking is performed on this, which could
+// lead to some bizarre errors.
 
 // Called as a goroutine. Note the semaphore around just the log.Printf outputs:
 // we can let each routine talk to the server on its own, but only one routine
 // at a time can write to the log.
 // Also, since these won't finish in the order they're called, we have to count
-// internally how many are finished: when we reach maxRequest, we send true down
-// the doneChannel
+// internally how many are finished: when we reach maxRequest, that is, this is the
+// 100th goroutine that finished, is when we send true down the doneChannel.
+// Previously, when I sent the request number in as a parameter,
+// I closed the channel when it reached 100. Since these goroutines are finishing
+// after random waits that get longer and longer, this only meant the last request
+// dispatched was sure to finish; others, say, #60, which had a wait time that
+// would have it finish after #100 did would then try to send on a closed channel.
+// Oops.
 
 func setupRequestAndReplyFunc() (func(int), chan bool) {
 	var numReqsFinished = 0 // Counts the times makeRequestAndGetResponse returns:
@@ -32,6 +40,7 @@ func setupRequestAndReplyFunc() (func(int), chan bool) {
 		var myClient http.Client
 
 		myRequest, _ := http.NewRequest("GET", requestURL, nil)
+		myRequest.Header.Add("Harness-Request-Number", fmt.Sprintf("\"%04d\"", requestNumber))
 		myResponse, _ := (&myClient).Do(myRequest)
 		lenContent, _ := strconv.Atoi(myResponse.Header.Get("Content-Length"))
 		theContent := make([]byte, lenContent)
@@ -42,7 +51,7 @@ func setupRequestAndReplyFunc() (func(int), chan bool) {
 		log.Printf("\tResponse Status Code: %d\n", myResponse.StatusCode)
 		log.Printf("\tResponse Status '%s'\n", myResponse.Status)
 		log.Printf("\tLength: %d\n", actuallyRead)
-		log.Printf("\tResponse Content: %s\n", theContent)
+		log.Printf("\tResponse Content:\n%s\n", theContent)
 		numReqsFinished++
 		<-semaphore
 		if numReqsFinished == maxRequest {
