@@ -2,34 +2,45 @@ EXERCISE 2: Implement a reverse-proxy server that uses channels as semaphores
 to protect a resource, in this case a server that does not perform well under
 load.
 
-The players:
-Protector.go -- the reverse proxy server
 SorryServer.go -- the underpowered server
+Protector.go -- the reverse proxy server
 harness.go -- hand-rolled test to throw requests at 
 	the underpowered server or its reverse proxy
 
 SorryServer.go implements a webserver that becomes progressively
 slower and slower the more concurrent connections it handles.
-It does this in a completely artifical way, by using a function
-that sleeps for a random number of milliseconds, up to a given maximum.
+It this artifically, by using a function that sleeps for a random number 
+of milliseconds up to a given maximum.
 If less than five concurrent requests are active, the longest it will
-sleep is 5 milliseconds; if the concurrent connections rise to 100,
-the maximum sleep become 750 milliseconds, and at 500 concurrent connections,
+sleep is 5 milliseconds; if the concurrent connections rise to 75 or above,
+the maximum sleep becomes 750 milliseconds, and at 500 concurrent connections,
 it shuts down.
 
-Protector.go is the reverse proxy that only allows five requests in. Right
-now if there are more than five, it will just block until a slot becomes
-available.
+Protector.go is the reverse proxy that only allows five requests in. By
+default,if there are more than five, it will just block until a slot becomes
+available. If the environment variable PROTECTOR_OVERCAPACITY is set to "503",
+it will return 503s when more than 75 requests try to get on line.
 
 harness.go is a hand-rolled test program that throws requests at the server
-(or reverse proxy)
+or reverse proxy. This is determined by an environment variable HARNESS_URL,
+which, *IF* it's set, should *ONLY* be set to http://localhost:8080, the URL
+of the rev. proxy implemented by Protector.go.
+
+IN PROGRESS:
+
+Shell based tests that run various configurations of the Server, Reverse Proxy, 
+and harness, and check the logs for expected behavior, e.g., server & reverse
+proxy running, harness pointed at reverse proxy? Logs for the harness and server
+should only ever show five or fewer concurrent requests, while the reverse proxy
+can have up to 100 concurrent requests. Oh, set PROTECTOR_OVERCAPACITY to "503"?
+Then the reverse proxy should only have up to 75 concurrent requests, and throw 
+back 25 others with error 503s. (These work now, btw).
 
 TO DO:
-SorryServer.go: remove excess code with time and duration information
-
-Protector.go: implement 503 handling for some upper bound of requests (499, one
-less than the SorryServer's breaking point?)
-
-harness.go: remove excess code, add comments.
-
 Write tests using net/httptest.
+
+Find some way of altering the run parameters (maximum number of requests that 
+harness fires, number of requests before reverse proxy starts sending 503s, &c)
+that's less clunky than environment variables. Oh gosh, look, there are something
+like a dozen implementations of getopts for go! :( (and one of them looks to be 
+over 1000 lines of code in more than five modules, :'( )
