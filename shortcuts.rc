@@ -1,0 +1,34 @@
+#!/bin/echo
+#
+#	$Id$
+#
+#	Collection of aliases for easy and error free, e.g., no "go run prog.go 2> prog.go",
+#	use and testing
+ME="shortcuts.rc"
+if [ "$(basename -- $0)" = "$ME" ]
+then
+	exec 1>&2
+	echo "ERROR!!! This should not be run, but should be read into the current"
+	echo "current sh, either with '. shortcuts.rc' or 'source shortcuts.rc'"
+	exit 1
+fi
+echo alias goServer='go run SorryServer.go 2> SorryServer.log &'
+echo alias goHarness='go run harness.go 2> harness.log &'
+echo alias goProtector='go run Protector.go 2> Protector.log &'
+echo alias moreServer='go run SorryServer.go 2>> SorryServer.log &'
+echo alias moreHarness='go run harness.go 2>> harness.log &'
+echo alias moreProtector='go run Protector.go 2>> Protector.log &'
+echo alias stopServer='curl http://localhost:8181/HALT'
+echo alias stopProtector='curl http://localhost:8080/HALT'
+echo alias stopAll='curl http://localhost:8181/HALT; curl http://localhost:8080/HALT'
+echo alias envinfo="echo PROTECTOR_OVERCAPACITY=\$PROTECTOR_OVERCAPACITY; echo HARNESS_URL=\$HARNESS_URL"
+alias goServer='go run SorryServer.go 2> SorryServer.log &'
+alias goHarness='go run harness.go 2> harness.log &'
+alias goProtector='go run Protector.go 2> Protector.log &'
+alias moreServer='go run SorryServer.go 2>> SorryServer.log &'
+alias moreHarness='go run harness.go 2>> harness.log &'
+alias moreProtector='go run Protector.go 2>> Protector.log &'
+alias stopServer='curl http://localhost:8181/HALT'
+alias stopProtector='curl http://localhost:8080/HALT'
+alias stopAll='curl http://localhost:8181/HALT; curl http://localhost:8080/HALT'
+alias envinfo="echo PROTECTOR_OVERCAPACITY=\$PROTECTOR_OVERCAPACITY; echo HARNESS_URL=\$HARNESS_URL"
